@@ -77,18 +77,24 @@ class Solver:
 
     def suggest(self):
         tried = set(self.scores) | self.dead
-        for seed in SEEDS:
-            if seed not in tried and seed in self.index and len(self.scores) < 2:
-                return seed
         known = [(w, s) for w, s in self.scores.items() if w in self.index]
+        if len(known) < 4:  # correlation needs a few points; seed diverse regions
+            for seed in SEEDS:
+                if seed not in tried and seed in self.index:
+                    return seed
         if not known:
             # ponytail: seeds exhausted with nothing scored — walk the vocab
             return next((w for w in self.words if w not in tried), None)
-        # Each score pins cos(target, w_i) = s_i/100; rank vocab by squared error.
+        # Rank vocab by correlation between its cosine profile over the guessed
+        # words and the observed scores — robust to the game using a slightly
+        # different embedding model (calibration cancels out).
         U = self.vecs[[self.index[w] for w, _ in known]]
-        c = np.array([s / 100 for _, s in known], dtype=np.float32)
-        err = ((self.vecs @ U.T - c) ** 2).sum(axis=1)
-        for i in np.argsort(err):
+        c = np.array([s for _, s in known], dtype=np.float32)
+        P = self.vecs @ U.T
+        Pc = P - P.mean(axis=1, keepdims=True)
+        cc = c - c.mean()
+        r = (Pc @ cc) / (np.linalg.norm(Pc, axis=1) * np.linalg.norm(cc) + 1e-9)
+        for i in np.argsort(-r):
             if i < SUGGEST_CAP and self.words[i] not in tried:
                 return self.words[i]
         return None

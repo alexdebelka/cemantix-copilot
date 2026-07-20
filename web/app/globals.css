@@ -1,0 +1,223 @@
+:root {
+  --paper: #f7f8f7;
+  --ink: #191c21;
+  --muted: #878e98;
+  --hairline: #e2e5e7;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.page {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 0.75rem;
+}
+
+.hero {
+  padding: 4.5rem 0 2.5rem;
+  text-align: center;
+}
+
+.word {
+  font-size: clamp(2.6rem, 10vw, 3.8rem);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  animation: rise 0.35s ease-out;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+}
+
+.scoreForm {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.scoreInput {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.4rem;
+  text-align: center;
+  width: 9rem;
+  border: none;
+  border-bottom: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  padding: 0.3rem 0;
+  border-radius: 0;
+}
+
+.scoreInput::placeholder {
+  color: var(--hairline);
+}
+
+.scoreInput:focus {
+  outline: none;
+  border-bottom-width: 2px;
+}
+
+.actions {
+  margin-top: 1.75rem;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+button {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+button:hover {
+  color: var(--ink);
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.manualForm {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.manualForm input {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9rem;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  background: transparent;
+  padding: 0.25rem 0;
+  border-radius: 0;
+  color: var(--ink);
+}
+
+.manualForm input:focus {
+  outline: none;
+  border-bottom-color: var(--ink);
+}
+
+.list {
+  list-style: none;
+  border-top: 1px solid var(--hairline);
+}
+
+.row {
+  padding-top: 0.55rem;
+}
+
+.rowLine {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.guessWord {
+  font-size: 1.05rem;
+}
+
+.leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--hairline);
+  transform: translateY(-0.25rem);
+}
+
+.temp {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  height: 2px;
+  margin-top: 0.45rem;
+}
+
+.loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+.progressTrack {
+  width: min(16rem, 70%);
+  height: 2px;
+  background: var(--hairline);
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--ink);
+  transition: width 0.2s;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 3rem;
+  text-align: center;
+}
+
+.footer a {
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
