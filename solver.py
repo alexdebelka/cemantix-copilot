@@ -6,6 +6,7 @@ Never talks to the game site. Usage:
     python3 solver.py --selftest # offline convergence check
 """
 import json
+import random
 import sys
 import unicodedata
 from datetime import date
@@ -75,6 +76,7 @@ class Solver:
         self.index = {w: i for i, w in enumerate(words)}
         self.scores = {}   # word -> temperature (100 * cosine with target)
         self.dead = set()  # rejected by the game or not suggestable
+        self.seeds = random.sample(SEEDS, len(SEEDS))  # vary runs on restart
 
     def record(self, word, score):
         self.scores[word] = score
@@ -84,7 +86,7 @@ class Solver:
         known = [(w, s) for w, s in self.scores.items() if w in self.index]
         best = max(self.scores.values(), default=-1e9)
         if len(known) < 4 or best < WARM:  # cold: sample diverse regions
-            for seed in SEEDS:
+            for seed in self.seeds:
                 if seed not in tried and seed in self.index:
                     return seed
         if not known:

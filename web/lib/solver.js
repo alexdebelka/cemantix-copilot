@@ -23,6 +23,8 @@ export function createSolver(words, vecs, d) {
   const colScores = [];
   const scored = new Map(); // word -> score, insertion-ordered
   const dead = new Set();
+  // Shuffled per solver so a restart explores in a fresh order
+  const seeds = [...SEEDS].sort(() => Math.random() - 0.5);
 
   function cosineColumn(i) {
     const col = new Float32Array(n);
@@ -61,7 +63,7 @@ export function createSolver(words, vecs, d) {
       const bestScore = Math.max(-Infinity, ...scored.values());
       if (cols.length < 4 || bestScore < WARM) {
         // cold: sample diverse regions instead of fitting noise
-        for (const s of SEEDS) if (!tried(s) && index.has(s)) return s;
+        for (const s of seeds) if (!tried(s) && index.has(s)) return s;
       }
       if (cols.length === 0) {
         for (const w of words) if (!tried(w)) return w;
