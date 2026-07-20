@@ -8,7 +8,13 @@
 export const SEEDS = [
   "vie", "temps", "monde", "eau", "maison", "animal", "musique",
   "guerre", "science", "amour", "travail", "nature",
+  "idée", "force", "argent", "corps", "terre", "ville",
+  "enfant", "histoire", "machine", "couleur", "voyage", "loi",
 ];
+
+const SUGGEST_CAP = 20000; // vocab is frequency-sorted; only suggest common words
+const POOL = 2000; // candidates must be magnitude-plausible (top by covariance)
+const WARM = 15; // keep seeding diverse regions until something scores this hot
 
 export function createSolver(words, vecs, d) {
   const n = words.length;
@@ -52,19 +58,25 @@ export function createSolver(words, vecs, d) {
 
     suggest() {
       const tried = (w) => scored.has(w) || dead.has(w);
-      if (cols.length < 4) {
+      const bestScore = Math.max(-Infinity, ...scored.values());
+      if (cols.length < 4 || bestScore < WARM) {
+        // cold: sample diverse regions instead of fitting noise
         for (const s of SEEDS) if (!tried(s) && index.has(s)) return s;
       }
       if (cols.length === 0) {
         for (const w of words) if (!tried(w)) return w;
         return null;
       }
+      // Rank by correlation between a candidate's cosine profile over the
+      // guessed words and the observed scores, restricted to magnitude-
+      // plausible candidates (top covariance) — pure correlation rewards
+      // junk words whose profile merely *patterns* right.
       const k = cols.length;
       const cMean = colScores.reduce((a, b) => a + b, 0) / k;
       const cc = colScores.map((s) => s - cMean);
       const ccNorm = Math.hypot(...cc) + 1e-9;
-      let best = -1;
-      let bestR = -Infinity;
+      const cov = new Float32Array(n);
+      const r = new Float32Array(n);
       for (let j = 0; j < n; j++) {
         let sum = 0;
         let sumSq = 0;
@@ -75,14 +87,28 @@ export function createSolver(words, vecs, d) {
           sumSq += p * p;
           num += p * cc[i]; // Σcc = 0, so centering P is not needed here
         }
+        cov[j] = num;
         const pVar = sumSq - (sum * sum) / k;
-        const r = num / (Math.sqrt(Math.max(pVar, 1e-12)) * ccNorm);
-        if (r > bestR && !tried(words[j])) {
-          bestR = r;
+        r[j] = num / (Math.sqrt(Math.max(pVar, 1e-12)) * ccNorm);
+      }
+      const covThreshold = [...cov].sort((a, b) => b - a)[Math.min(POOL, n) - 1];
+      let best = -1;
+      let bestR = -Infinity;
+      let fallback = -1;
+      let fallbackR = -Infinity;
+      for (let j = 0; j < n; j++) {
+        if (tried(words[j])) continue;
+        if (r[j] > fallbackR) {
+          fallbackR = r[j];
+          fallback = j;
+        }
+        if (j < SUGGEST_CAP && cov[j] >= covThreshold && r[j] > bestR) {
+          bestR = r[j];
           best = j;
         }
       }
-      return best >= 0 ? words[best] : null;
+      const pick = best >= 0 ? best : fallback; // pool exhausted -> plain corr
+      return pick >= 0 ? words[pick] : null;
     },
   };
 }

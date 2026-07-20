@@ -19,11 +19,15 @@ CACHE = HERE / "model_cache.npz"
 SESSION = HERE / "session.json"
 
 SEEDS = ["vie", "temps", "monde", "eau", "maison", "animal", "musique",
-         "guerre", "science", "amour", "travail", "nature"]
+         "guerre", "science", "amour", "travail", "nature",
+         "idée", "force", "argent", "corps", "terre", "ville",
+         "enfant", "histoire", "machine", "couleur", "voyage", "loi"]
 
 # Vocab is frequency-sorted; only suggest common words (rare ones are junk
 # the game rejects anyway). Manual `w` guesses may use the full vocab.
-SUGGEST_CAP = 50_000
+SUGGEST_CAP = 20_000
+POOL = 2_000     # candidates must be magnitude-plausible (top by covariance)
+WARM = 15        # keep seeding diverse regions until something scores this hot
 
 
 def load_word2vec_bin(path):
@@ -78,24 +82,33 @@ class Solver:
     def suggest(self):
         tried = set(self.scores) | self.dead
         known = [(w, s) for w, s in self.scores.items() if w in self.index]
-        if len(known) < 4:  # correlation needs a few points; seed diverse regions
+        best = max(self.scores.values(), default=-1e9)
+        if len(known) < 4 or best < WARM:  # cold: sample diverse regions
             for seed in SEEDS:
                 if seed not in tried and seed in self.index:
                     return seed
         if not known:
             # ponytail: seeds exhausted with nothing scored — walk the vocab
             return next((w for w in self.words if w not in tried), None)
-        # Rank vocab by correlation between its cosine profile over the guessed
-        # words and the observed scores — robust to the game using a slightly
-        # different embedding model (calibration cancels out).
+        # Rank by correlation between a candidate's cosine profile over the
+        # guessed words and the observed scores (robust to the game using a
+        # different embedding model), but only among magnitude-plausible
+        # candidates (top covariance) — pure correlation rewards junk words
+        # whose profile merely *patterns* right.
         U = self.vecs[[self.index[w] for w, _ in known]]
         c = np.array([s for _, s in known], dtype=np.float32)
         P = self.vecs @ U.T
-        Pc = P - P.mean(axis=1, keepdims=True)
         cc = c - c.mean()
-        r = (Pc @ cc) / (np.linalg.norm(Pc, axis=1) * np.linalg.norm(cc) + 1e-9)
-        for i in np.argsort(-r):
-            if i < SUGGEST_CAP and self.words[i] not in tried:
+        cov = P @ cc
+        Pc = P - P.mean(axis=1, keepdims=True)
+        r = cov / (np.linalg.norm(Pc, axis=1) * np.linalg.norm(cc) + 1e-9)
+        pool = set(np.argsort(-cov)[:POOL])
+        order = np.argsort(-r)
+        for i in order:
+            if i in pool and i < SUGGEST_CAP and self.words[i] not in tried:
+                return self.words[i]
+        for i in order:  # pool exhausted — fall back to plain correlation
+            if self.words[i] not in tried:
                 return self.words[i]
         return None
 
