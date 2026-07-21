@@ -52,6 +52,7 @@ export default function Home() {
   const [manualWord, setManualWord] = useState("");
   const [manualScore, setManualScore] = useState("");
   const [practice, setPractice] = useState<number | null>(null); // secret index
+  const [setup, setSetup] = useState(false); // choosing a practice secret
   const [auto, setAuto] = useState(false); // practice: let the co-pilot play alone
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -164,23 +165,38 @@ export default function Home() {
     return () => clearTimeout(t);
   });
 
-  function startPractice() {
+  function startPractice(chosen?: string) {
     const m = modelRef.current!;
+    let secret: number;
+    if (chosen) {
+      const i = indexRef.current.get(chosen);
+      if (i === undefined) {
+        setNotice("mot inconnu du modèle");
+        return;
+      }
+      secret = i;
+    } else {
+      // common-ish words only; length >= 4 skips web-crawl junk like "kw"
+      do {
+        secret = 1000 + Math.floor(Math.random() * 9000);
+      } while (m.words[secret].length < 4);
+    }
     const solver = createSolver(m.words, m.vecs, m.d);
     solverRef.current = solver;
-    // common-ish words only; length >= 4 skips web-crawl junk like "kw"
-    let secret;
-    do {
-      secret = 1000 + Math.floor(Math.random() * 9000);
-    } while (m.words[secret].length < 4);
     setPractice(secret);
-    setAuto(false);
+    setSetup(false);
+    setAuto(!!chosen); // you know your own secret — watch the hunt
     setEntries([]);
     setInput("");
     setNotice(null);
     setManualOpen(false);
     setSuggestion(solver.suggest());
     setPhase("ready");
+  }
+
+  function submitSetup(e: React.FormEvent) {
+    e.preventDefault();
+    startPractice(input.trim().toLowerCase() || undefined);
   }
 
   function exitPractice() {
@@ -267,7 +283,31 @@ export default function Home() {
         </div>
       )}
 
-      {(phase === "ready" || phase === "won") && (
+      {setup && phase !== "loading" && (
+        <section className="hero">
+          <span className="mono">entraînement</span>
+          <h1 className="word">?</h1>
+          <form className="scoreForm" onSubmit={submitSetup}>
+            <input
+              className="scoreInput"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="mot secret (vide = aléatoire)"
+              aria-label="Mot secret que le co-pilote devra deviner"
+              style={{ width: "16rem" }}
+              autoFocus
+            />
+          </form>
+          {notice && <p className="mono notice">{notice}</p>}
+          <div className="actions">
+            <button onClick={() => { setSetup(false); setInput(""); setNotice(null); }}>
+              annuler
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!setup && (phase === "ready" || phase === "won") && (
         <>
           <section className="hero">
             <span className="mono">
@@ -306,7 +346,9 @@ export default function Home() {
                         ajouter un mot
                       </button>
                       {entries.length > 0 && <button onClick={restart}>recommencer</button>}
-                      <button onClick={startPractice}>entraînement</button>
+                      <button onClick={() => { setSetup(true); setInput(""); setNotice(null); }}>
+                        entraînement
+                      </button>
                     </>
                   ) : (
                     <>
@@ -344,13 +386,17 @@ export default function Home() {
               <div className="actions">
                 {practice !== null ? (
                   <>
-                    <button onClick={startPractice}>rejouer l’entraînement</button>
+                    <button onClick={() => { setSetup(true); setInput(""); setNotice(null); }}>
+                      rejouer l’entraînement
+                    </button>
                     <button onClick={exitPractice}>retour au jeu du jour</button>
                   </>
                 ) : (
                   <>
                     <button onClick={restart}>recommencer</button>
-                    <button onClick={startPractice}>entraînement</button>
+                    <button onClick={() => { setSetup(true); setInput(""); setNotice(null); }}>
+                      entraînement
+                    </button>
                   </>
                 )}
               </div>
@@ -395,11 +441,12 @@ export default function Home() {
               le meilleur candidat — en général 5 à 15 essais suffisent.
             </p>
             <p>
-              Le mode <em>entraînement</em> tire un mot secret local, noté comme
-              dans le vrai jeu. Tapez vos propres mots, appuyez sur entrée pour
-              jouer la suggestion, ou choisissez « laisser jouer » pour regarder
-              le co-pilote traquer le mot tout seul. Tout se passe dans votre
-              navigateur : aucune requête n’est envoyée au site du jeu.
+              Le mode <em>entraînement</em> joue en local, noté comme dans le
+              vrai jeu : donnez votre propre mot secret et regardez le co-pilote
+              le traquer, ou laissez-le en tirer un au hasard et devinez
+              vous-même — entrée joue la suggestion, « laisser jouer » l’automatise.
+              Tout se passe dans votre navigateur : aucune requête n’est envoyée
+              au site du jeu.
             </p>
           </details>
         </>
