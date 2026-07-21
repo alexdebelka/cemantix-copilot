@@ -12,7 +12,7 @@ export const SEEDS = [
   "enfant", "histoire", "machine", "couleur", "voyage", "loi",
 ];
 
-const SUGGEST_CAP = 20000; // vocab is frequency-sorted; only suggest common words
+export const SUGGEST_CAP = 20000; // vocab is frequency-sorted; only suggest common words
 const POOL = 2000; // candidates must be magnitude-plausible (top by covariance)
 
 export function createSolver(words, vecs, d) {

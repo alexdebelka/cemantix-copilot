@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createSolver, decodeModel, type Solver } from "@/lib/solver";
+import { createSolver, decodeModel, SUGGEST_CAP, type Solver } from "@/lib/solver";
 
 const STORAGE_KEY = "cemantix-copilote";
 
@@ -174,6 +174,12 @@ export default function Home() {
         setNotice("mot inconnu du modèle");
         return;
       }
+      if (i >= SUGGEST_CAP) {
+        // the co-pilot only proposes common words — a rarer secret would
+        // make the hunt unwinnable, which misrepresents the algorithm
+        setNotice("mot trop rare — le co-pilote ne propose que des mots courants");
+        return;
+      }
       secret = i;
     } else {
       // common-ish words only; length >= 4 skips web-crawl junk like "kw"
@@ -232,7 +238,7 @@ export default function Home() {
 
   function rejectWord() {
     const solver = solverRef.current!;
-    if (!suggestion) return;
+    if (!suggestion || practice !== null) return; // never persist practice state
     solver.reject(suggestion);
     save(entries, [...solver.dead]);
     setSuggestion(solver.suggest());

@@ -1,5 +1,7 @@
 export const SEEDS: string[];
 
+export const SUGGEST_CAP: number;
+
 export interface Solver {
   words: string[];
   has(word: string): boolean;
