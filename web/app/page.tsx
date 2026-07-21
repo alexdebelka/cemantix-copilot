@@ -52,6 +52,7 @@ export default function Home() {
   const [manualWord, setManualWord] = useState("");
   const [manualScore, setManualScore] = useState("");
   const [practice, setPractice] = useState<number | null>(null); // secret index
+  const [auto, setAuto] = useState(false); // practice: let the co-pilot play alone
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -145,10 +146,16 @@ export default function Home() {
     }
   }
 
-  // Practice auto-play: the co-pilot scores its own suggestion against the
-  // hidden word, exactly as the real game would.
+  function playSuggestion() {
+    if (practice === null || !suggestion) return;
+    const s = practiceScore(suggestion, practice);
+    if (s !== null) commit(suggestion, s);
+  }
+
+  // Practice auto-play (opt-in): the co-pilot scores its own suggestion
+  // against the hidden word, exactly as the real game would.
   useEffect(() => {
-    if (practice === null || phase !== "ready" || !suggestion) return;
+    if (practice === null || phase !== "ready" || !auto || !suggestion) return;
     const t = setTimeout(() => {
       const s = practiceScore(suggestion, practice);
       if (s !== null) commit(suggestion, s);
@@ -167,6 +174,7 @@ export default function Home() {
       secret = 1000 + Math.floor(Math.random() * 9000);
     } while (m.words[secret].length < 4);
     setPractice(secret);
+    setAuto(false);
     setEntries([]);
     setInput("");
     setNotice(null);
@@ -185,11 +193,15 @@ export default function Home() {
   function submitScore(e: React.FormEvent) {
     e.preventDefault();
     if (practice !== null) {
-      // in practice mode the input tests any word of your choosing
+      // your word if you typed one, otherwise play the suggestion
       const word = input.trim().toLowerCase();
-      const s = word ? practiceScore(word, practice) : null;
-      if (word && s === null) setNotice("mot inconnu du modèle");
-      else if (s !== null) {
+      if (!word) {
+        playSuggestion();
+        return;
+      }
+      const s = practiceScore(word, practice);
+      if (s === null) setNotice("mot inconnu du modèle");
+      else {
         setNotice(null);
         setInput("");
         commit(word, s);
@@ -274,11 +286,11 @@ export default function Home() {
                     className="scoreInput"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={practice !== null ? "tester un mot" : "0,00"}
+                    placeholder={practice !== null ? "votre mot, ou entrée" : "0,00"}
                     inputMode={practice !== null ? "text" : "decimal"}
                     aria-label={
                       practice !== null
-                        ? "Tester un mot contre le mot secret"
+                        ? "Votre mot — ou entrée pour jouer la suggestion"
                         : "Température donnée par le jeu"
                     }
                     style={practice !== null ? { width: "12rem" } : undefined}
@@ -297,7 +309,13 @@ export default function Home() {
                       <button onClick={startPractice}>entraînement</button>
                     </>
                   ) : (
-                    <button onClick={exitPractice}>arrêter l’entraînement</button>
+                    <>
+                      <button onClick={playSuggestion}>jouer la suggestion</button>
+                      <button onClick={() => setAuto(!auto)}>
+                        {auto ? "pause" : "laisser jouer"}
+                      </button>
+                      <button onClick={exitPractice}>arrêter l’entraînement</button>
+                    </>
                   )}
                 </div>
                 {manualOpen && practice === null && (
@@ -377,10 +395,11 @@ export default function Home() {
               le meilleur candidat — en général 5 à 15 essais suffisent.
             </p>
             <p>
-              Le mode <em>entraînement</em> tire un mot secret local et laisse le
-              co-pilote le traquer sous vos yeux, avec les mêmes scores que le vrai
-              jeu ; vous pouvez aussi y tester vos propres mots. Tout se passe dans
-              votre navigateur : aucune requête n’est envoyée au site du jeu.
+              Le mode <em>entraînement</em> tire un mot secret local, noté comme
+              dans le vrai jeu. Tapez vos propres mots, appuyez sur entrée pour
+              jouer la suggestion, ou choisissez « laisser jouer » pour regarder
+              le co-pilote traquer le mot tout seul. Tout se passe dans votre
+              navigateur : aucune requête n’est envoyée au site du jeu.
             </p>
           </details>
         </>
