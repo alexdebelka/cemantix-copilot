@@ -130,7 +130,9 @@ export default function Home() {
   function practiceScore(word: string, secret: number): number | null {
     const i = indexRef.current.get(word);
     if (i === undefined) return null;
-    return i === secret ? 100 : cosine(i, secret) * 100;
+    if (i === secret) return 100;
+    // two decimals, like the real game displays — no extra precision leaks in
+    return Math.round(cosine(i, secret) * 10000) / 100;
   }
 
   function commit(word: string, score: number) {
