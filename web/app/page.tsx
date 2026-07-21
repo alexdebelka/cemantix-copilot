@@ -333,9 +333,13 @@ export default function Home() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="mot secret (vide = aléatoire)"
               aria-label="Mot secret que le co-pilote devra deviner"
+              enterKeyHint="go"
               style={{ width: "16rem" }}
               autoFocus
             />
+            {/* mobile numeric/word keyboards don't implicitly submit
+                buttonless forms — a real submit button fixes ✓/entrée */}
+            <button type="submit">ok</button>
           </form>
           {notice && <p className="mono notice">{notice}</p>}
           <div className="actions">
@@ -372,9 +376,11 @@ export default function Home() {
                         ? "Votre mot — ou entrée pour jouer la suggestion"
                         : "Température donnée par le jeu"
                     }
+                    enterKeyHint="go"
                     style={practice !== null ? { width: "12rem" } : undefined}
                     autoFocus
                   />
+                  <button type="submit">ok</button>
                 </form>
                 {notice && <p className="mono notice">{notice}</p>}
                 <div className="actions">
