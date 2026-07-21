@@ -54,7 +54,7 @@ def game_word(w):
 def load_model():
     if CACHE.exists():
         data = np.load(CACHE, allow_pickle=False)
-        return list(data["words"]), data["vecs"]
+        return [str(w) for w in data["words"]], data["vecs"]
     if not MODEL_BIN.exists():
         sys.exit("model.bin missing — run:\n  curl -L -o model.bin "
                  "https://embeddings.net/embeddings/frWac_no_postag_phrase_500_cbow_cut10.bin")
