@@ -32,6 +32,7 @@ const fmt = (s: number) =>
   s.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 type Saved = { day: string; entries: [string, number][]; dead: string[] };
+type Model = { words: string[]; vecs: Float32Array; d: number };
 
 function save(entries: [string, number][], dead: string[]) {
   const data: Saved = { day: today(), entries, dead };
@@ -40,6 +41,8 @@ function save(entries: [string, number][], dead: string[]) {
 
 export default function Home() {
   const solverRef = useRef<Solver | null>(null);
+  const modelRef = useRef<Model | null>(null);
+  const indexRef = useRef<Map<string, number>>(new Map());
   const [phase, setPhase] = useState<"loading" | "ready" | "won" | "error">("loading");
   const [progress, setProgress] = useState(0);
   const [entries, setEntries] = useState<[string, number][]>([]);
@@ -48,6 +51,8 @@ export default function Home() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualWord, setManualWord] = useState("");
   const [manualScore, setManualScore] = useState("");
+  const [practice, setPractice] = useState<number | null>(null); // secret index
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +82,8 @@ export default function Home() {
           new Float32Array(scalesBuf),
           meta.d,
         );
+        modelRef.current = { words, vecs, d: meta.d };
+        indexRef.current = new Map(words.map((w, i) => [w, i]));
         const solver = createSolver(words, vecs, meta.d);
         solverRef.current = solver;
 
@@ -111,12 +118,25 @@ export default function Home() {
   const best = entries.reduce((m, [, s]) => Math.max(m, s), -Infinity);
   const wordColor = Number.isFinite(best) ? heat(best) : "var(--ink)";
 
+  function cosine(i: number, j: number) {
+    const { vecs, d } = modelRef.current!;
+    let s = 0;
+    for (let k = 0; k < d; k++) s += vecs[i * d + k] * vecs[j * d + k];
+    return s;
+  }
+
+  function practiceScore(word: string, secret: number): number | null {
+    const i = indexRef.current.get(word);
+    if (i === undefined) return null;
+    return i === secret ? 100 : cosine(i, secret) * 100;
+  }
+
   function commit(word: string, score: number) {
     const solver = solverRef.current!;
     solver.record(word, score);
     const next: [string, number][] = [...entries, [word, score]];
     setEntries(next);
-    save(next, [...solver.dead]);
+    if (practice === null) save(next, [...solver.dead]);
     if (score >= 100) {
       setSuggestion(word);
       setPhase("won");
@@ -125,8 +145,52 @@ export default function Home() {
     }
   }
 
+  // Practice auto-play: the co-pilot scores its own suggestion against the
+  // hidden word, exactly as the real game would.
+  useEffect(() => {
+    if (practice === null || phase !== "ready" || !suggestion) return;
+    const t = setTimeout(() => {
+      const s = practiceScore(suggestion, practice);
+      if (s !== null) commit(suggestion, s);
+      else solverRef.current!.reject(suggestion);
+    }, 650);
+    return () => clearTimeout(t);
+  });
+
+  function startPractice() {
+    const m = modelRef.current!;
+    const solver = createSolver(m.words, m.vecs, m.d);
+    solverRef.current = solver;
+    setPractice(1000 + Math.floor(Math.random() * 9000));
+    setEntries([]);
+    setInput("");
+    setNotice(null);
+    setManualOpen(false);
+    setSuggestion(solver.suggest());
+    setPhase("ready");
+  }
+
+  function exitPractice() {
+    if (practice !== null && phase !== "won") {
+      alert(`Le mot secret était « ${modelRef.current!.words[practice]} »`);
+    }
+    location.reload(); // restores today's real session from localStorage
+  }
+
   function submitScore(e: React.FormEvent) {
     e.preventDefault();
+    if (practice !== null) {
+      // in practice mode the input tests any word of your choosing
+      const word = input.trim().toLowerCase();
+      const s = word ? practiceScore(word, practice) : null;
+      if (word && s === null) setNotice("mot inconnu du modèle");
+      else if (s !== null) {
+        setNotice(null);
+        setInput("");
+        commit(word, s);
+      }
+      return;
+    }
     const score = parseFloat(input.replace(",", "."));
     if (!suggestion || Number.isNaN(score)) return;
     setInput("");
@@ -163,7 +227,9 @@ export default function Home() {
   return (
     <div className="page">
       <header className="header">
-        <span className="mono">cémantix · co-pilote</span>
+        <span className="mono">
+          cémantix · co-pilote{practice !== null && " · entraînement"}
+        </span>
         <span className="mono">
           {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
         </span>
@@ -203,18 +269,33 @@ export default function Home() {
                     className="scoreInput"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="0,00"
-                    inputMode="decimal"
-                    aria-label="Température donnée par le jeu"
+                    placeholder={practice !== null ? "tester un mot" : "0,00"}
+                    inputMode={practice !== null ? "text" : "decimal"}
+                    aria-label={
+                      practice !== null
+                        ? "Tester un mot contre le mot secret"
+                        : "Température donnée par le jeu"
+                    }
+                    style={practice !== null ? { width: "12rem" } : undefined}
                     autoFocus
                   />
                 </form>
+                {notice && <p className="mono notice">{notice}</p>}
                 <div className="actions">
-                  <button onClick={rejectWord}>mot refusé</button>
-                  <button onClick={() => setManualOpen(!manualOpen)}>ajouter un mot</button>
-                  {entries.length > 0 && <button onClick={restart}>recommencer</button>}
+                  {practice === null ? (
+                    <>
+                      <button onClick={rejectWord}>mot refusé</button>
+                      <button onClick={() => setManualOpen(!manualOpen)}>
+                        ajouter un mot
+                      </button>
+                      {entries.length > 0 && <button onClick={restart}>recommencer</button>}
+                      <button onClick={startPractice}>entraînement</button>
+                    </>
+                  ) : (
+                    <button onClick={exitPractice}>arrêter l’entraînement</button>
+                  )}
                 </div>
-                {manualOpen && (
+                {manualOpen && practice === null && (
                   <form className="manualForm" onSubmit={submitManual}>
                     <input
                       value={manualWord}
@@ -238,7 +319,17 @@ export default function Home() {
             )}
             {phase === "won" && (
               <div className="actions">
-                <button onClick={restart}>recommencer</button>
+                {practice !== null ? (
+                  <>
+                    <button onClick={startPractice}>rejouer l’entraînement</button>
+                    <button onClick={exitPractice}>retour au jeu du jour</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={restart}>recommencer</button>
+                    <button onClick={startPractice}>entraînement</button>
+                  </>
+                )}
               </div>
             )}
           </section>
@@ -265,6 +356,28 @@ export default function Home() {
               ))}
             </ol>
           )}
+
+          <details className="about">
+            <summary className="mono">comment ça marche</summary>
+            <p>
+              Cémantix note chaque mot par sa proximité de sens avec le mot secret :
+              la température est <em>100 × cosinus</em> entre vecteurs word2vec —
+              et ce co-pilote embarque précisément le même modèle que le jeu
+              (frWac, vérifié au centième de degré près).
+            </p>
+            <p>
+              Chaque score que vous rapportez est donc une contrainte exacte sur la
+              position du mot secret. Le co-pilote classe 50 000 mots courants par
+              corrélation entre leur profil de similarité et vos scores, puis propose
+              le meilleur candidat — en général 5 à 15 essais suffisent.
+            </p>
+            <p>
+              Le mode <em>entraînement</em> tire un mot secret local et laisse le
+              co-pilote le traquer sous vos yeux, avec les mêmes scores que le vrai
+              jeu ; vous pouvez aussi y tester vos propres mots. Tout se passe dans
+              votre navigateur : aucune requête n’est envoyée au site du jeu.
+            </p>
+          </details>
         </>
       )}
 

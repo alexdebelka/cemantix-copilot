@@ -184,6 +184,36 @@ a:focus-visible {
   margin-top: 0.45rem;
 }
 
+.notice {
+  margin-top: 0.9rem;
+}
+
+.about {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--hairline);
+  padding-top: 0.9rem;
+}
+
+.about summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.about summary::-webkit-details-marker {
+  display: none;
+}
+
+.about summary:hover {
+  color: var(--ink);
+}
+
+.about p {
+  margin-top: 0.9rem;
+  font-size: 0.92rem;
+  color: var(--ink);
+  max-width: 32rem;
+}
+
 .loading {
   flex: 1;
   display: flex;
