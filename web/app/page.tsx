@@ -161,7 +161,12 @@ export default function Home() {
     const m = modelRef.current!;
     const solver = createSolver(m.words, m.vecs, m.d);
     solverRef.current = solver;
-    setPractice(1000 + Math.floor(Math.random() * 9000));
+    // common-ish words only; length >= 4 skips web-crawl junk like "kw"
+    let secret;
+    do {
+      secret = 1000 + Math.floor(Math.random() * 9000);
+    } while (m.words[secret].length < 4);
+    setPractice(secret);
     setEntries([]);
     setInput("");
     setNotice(null);

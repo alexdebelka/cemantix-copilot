@@ -138,7 +138,8 @@ def practice():
     Use it to exercise the co-pilot (CLI or web) without the real site."""
     words, vecs = load_model()
     index = {w: i for i, w in enumerate(words)}
-    secret = random.choice(words[1000:10000])  # common-ish word, like the game
+    # common-ish words only; length >= 4 skips web-crawl junk like "kw"
+    secret = random.choice([w for w in words[1000:10000] if len(w) >= 4])
     tvec = vecs[index[secret]]
     print("Jeu local — devinez le mot secret. 'q' pour abandonner.")
     n = 0
