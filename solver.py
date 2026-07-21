@@ -133,6 +133,30 @@ def selftest():
     print("selftest OK")
 
 
+def practice():
+    """Local Cemantix clone: same model as the game, so scores are identical.
+    Use it to exercise the co-pilot (CLI or web) without the real site."""
+    words, vecs = load_model()
+    index = {w: i for i, w in enumerate(words)}
+    secret = random.choice(words[1000:10000])  # common-ish word, like the game
+    tvec = vecs[index[secret]]
+    print("Jeu local — devinez le mot secret. 'q' pour abandonner.")
+    n = 0
+    while True:
+        w = input("mot> ").strip().lower()
+        if w == "q":
+            print(f"C'était : {secret!r}")
+            return
+        if w not in index:
+            print("mot inconnu")
+            continue
+        n += 1
+        if w == secret:
+            print(f"🎉 100.00°C — trouvé en {n} essais !")
+            return
+        print(f"{float(vecs[index[w]] @ tvec) * 100:.2f}°C")
+
+
 def load_session():
     key = str(date.today())
     if SESSION.exists():
@@ -204,5 +228,7 @@ def play():
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         selftest()
+    elif "--practice" in sys.argv:
+        practice()
     else:
         play()
