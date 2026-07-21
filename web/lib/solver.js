@@ -20,6 +20,7 @@ export function createSolver(words, vecs, d) {
   const index = new Map(words.map((w, i) => [w, i]));
   const cols = []; // one Float32Array(n) of cosines per in-vocab scored guess
   const colScores = [];
+  const colWords = []; // colWords[i] is the guess behind cols[i]/colScores[i]
   const scored = new Map(); // word -> score, insertion-ordered
   const dead = new Set();
   // Shuffled per solver so a restart explores in a fresh order
@@ -44,10 +45,17 @@ export function createSolver(words, vecs, d) {
     dead,
 
     record(word, score) {
-      if (scored.has(word)) return;
+      if (scored.has(word)) {
+        // correction: update the score, keep the already-computed column
+        scored.set(word, score);
+        const ci = colWords.indexOf(word);
+        if (ci >= 0) colScores[ci] = score;
+        return;
+      }
       scored.set(word, score);
       const i = index.get(word);
       if (i !== undefined) {
+        colWords.push(word);
         cols.push(cosineColumn(i));
         colScores.push(score);
       }
@@ -91,7 +99,12 @@ export function createSolver(words, vecs, d) {
         const pVar = sumSq - (sum * sum) / k;
         r[j] = num / (Math.sqrt(Math.max(pVar, 1e-12)) * ccNorm);
       }
-      const covThreshold = [...cov].sort((a, b) => b - a)[Math.min(POOL, n) - 1];
+      // exact top-POOL by covariance, matching the Python solver
+      const pool = new Set(
+        Array.from(cov.keys())
+          .sort((a, b) => cov[b] - cov[a])
+          .slice(0, POOL),
+      );
       let best = -1;
       let bestR = -Infinity;
       let fallback = -1;
@@ -102,7 +115,7 @@ export function createSolver(words, vecs, d) {
           fallbackR = r[j];
           fallback = j;
         }
-        if (j < SUGGEST_CAP && cov[j] >= covThreshold && r[j] > bestR) {
+        if (j < SUGGEST_CAP && pool.has(j) && r[j] > bestR) {
           bestR = r[j];
           best = j;
         }

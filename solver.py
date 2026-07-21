@@ -199,25 +199,36 @@ def play():
                 print(f"  {sc:7.2f}  {w}")
             continue
         if raw == "x":
-            s.dead.add(guess)
-            save()
+            if guess:
+                s.dead.add(guess)
+                save()
             continue
         if raw.startswith("w "):
             try:
                 _, word, score = raw.split()
-                raw_word, score = word, float(score)
+                word, score = unicodedata.normalize("NFC", word), float(score)
             except ValueError:
                 print("usage: w <word> <score>")
                 continue
-            s.record(unicodedata.normalize("NFC", raw_word), score)
-            if guess:
-                s.dead.add(guess)  # suggestion shown but user answered something else
+            if not -100 <= score <= 100:
+                print("Score must be between -100 and 100.")
+                continue
+            s.record(word, score)
             save()
+            if score >= 100:
+                print(f"\n🎉 Found it: {word!r} in {len(s.scores)} guesses!")
+                return
             continue
         try:
             score = float(raw.replace(",", "."))
         except ValueError:
             print("Enter a number, or one of: x, w <word> <score>, top, q.")
+            continue
+        if not guess:
+            print("No suggestion pending — record guesses with `w <word> <score>`.")
+            continue
+        if not -100 <= score <= 100:
+            print("Score must be between -100 and 100.")
             continue
         s.record(guess, score)
         save()

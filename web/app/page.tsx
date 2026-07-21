@@ -15,6 +15,7 @@ const STOPS: [number, [number, number, number]][] = [
 ];
 
 function heat(score: number): string {
+  score = Math.max(-100, Math.min(100, score));
   let [s0, c0] = STOPS[0];
   for (const [s1, c1] of STOPS.slice(1)) {
     if (score <= s1) {
@@ -30,12 +31,16 @@ function heat(score: number): string {
 const today = () => new Date().toLocaleDateString("en-CA"); // local YYYY-MM-DD
 const fmt = (s: number) =>
   s.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// NFC so macOS decomposed accents still match the vocab (mirrors the CLI)
+const norm = (s: string) => s.trim().toLowerCase().normalize("NFC");
 
 type Saved = { day: string; entries: [string, number][]; dead: string[] };
 type Model = { words: string[]; vecs: Float32Array; d: number };
 
-function save(entries: [string, number][], dead: string[]) {
-  const data: Saved = { day: today(), entries, dead };
+// day is fixed when the session starts: entries scored before midnight must
+// not be restamped onto the next day's puzzle
+function save(day: string, entries: [string, number][], dead: string[]) {
+  const data: Saved = { day, entries, dead };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
@@ -43,6 +48,7 @@ export default function Home() {
   const solverRef = useRef<Solver | null>(null);
   const modelRef = useRef<Model | null>(null);
   const indexRef = useRef<Map<string, number>>(new Map());
+  const dayRef = useRef(today());
   const [phase, setPhase] = useState<"loading" | "ready" | "won" | "error">("loading");
   const [progress, setProgress] = useState(0);
   const [entries, setEntries] = useState<[string, number][]>([]);
@@ -66,16 +72,24 @@ export default function Home() {
           fetch("model/scales.f32").then((r) => r.arrayBuffer()),
         ]);
         const res = await fetch("model/vecs.i8");
+        // content-length may be the compressed size — collect chunks, don't
+        // trust it for allocation
         const total = Number(res.headers.get("content-length")) || meta.n * meta.d;
         const reader = res.body!.getReader();
-        const bytes = new Uint8Array(total);
+        const chunks: Uint8Array[] = [];
         let got = 0;
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          bytes.set(value, got);
+          chunks.push(value);
           got += value.length;
-          setProgress(got / total);
+          setProgress(Math.min(got / total, 1));
+        }
+        const bytes = new Uint8Array(got);
+        let off = 0;
+        for (const c of chunks) {
+          bytes.set(c, off);
+          off += c.length;
         }
         if (cancelled) return;
         const { words, vecs } = decodeModel(
@@ -89,6 +103,7 @@ export default function Home() {
         const solver = createSolver(words, vecs, meta.d);
         solverRef.current = solver;
 
+        dayRef.current = today(); // download may have crossed midnight
         const raw = localStorage.getItem(STORAGE_KEY);
         const saved: Saved | null = raw ? JSON.parse(raw) : null;
         const restored: [string, number][] = [];
@@ -138,9 +153,12 @@ export default function Home() {
   function commit(word: string, score: number) {
     const solver = solverRef.current!;
     solver.record(word, score);
-    const next: [string, number][] = [...entries, [word, score]];
+    // re-entering a word corrects its score instead of duplicating the row
+    const next: [string, number][] = entries.some(([w]) => w === word)
+      ? entries.map(([w, s]): [string, number] => (w === word ? [w, score] : [w, s]))
+      : [...entries, [word, score]];
     setEntries(next);
-    if (practice === null) save(next, [...solver.dead]);
+    if (practice === null) save(dayRef.current, next, [...solver.dead]);
     if (score >= 100) {
       setSuggestion(word);
       setPhase("won");
@@ -165,7 +183,10 @@ export default function Home() {
       else solverRef.current!.reject(suggestion);
     }, 650);
     return () => clearTimeout(t);
-  });
+    // deps: typing in the input must not reset the timer; entries keeps the
+    // commit closure fresh even if the same suggestion comes back
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practice, phase, auto, suggestion, entries]);
 
   function startPractice(chosen?: string) {
     const m = modelRef.current!;
@@ -204,7 +225,7 @@ export default function Home() {
 
   function submitSetup(e: React.FormEvent) {
     e.preventDefault();
-    startPractice(input.trim().toLowerCase() || undefined);
+    startPractice(norm(input) || undefined);
   }
 
   function exitPractice() {
@@ -218,7 +239,7 @@ export default function Home() {
     e.preventDefault();
     if (practice !== null) {
       // your word if you typed one, otherwise play the suggestion
-      const word = input.trim().toLowerCase();
+      const word = norm(input);
       if (!word) {
         playSuggestion();
         return;
@@ -234,6 +255,11 @@ export default function Home() {
     }
     const score = parseFloat(input.replace(",", "."));
     if (!suggestion || Number.isNaN(score)) return;
+    if (score < -100 || score > 100) {
+      setNotice("température entre -100 et 100");
+      return;
+    }
+    setNotice(null);
     setInput("");
     commit(suggestion, score);
   }
@@ -242,15 +268,20 @@ export default function Home() {
     const solver = solverRef.current!;
     if (!suggestion || practice !== null) return; // never persist practice state
     solver.reject(suggestion);
-    save(entries, [...solver.dead]);
+    save(dayRef.current, entries, [...solver.dead]);
     setSuggestion(solver.suggest());
   }
 
   function submitManual(e: React.FormEvent) {
     e.preventDefault();
-    const word = manualWord.trim().toLowerCase();
+    const word = norm(manualWord);
     const score = parseFloat(manualScore.replace(",", "."));
     if (!word || Number.isNaN(score)) return;
+    if (score < -100 || score > 100) {
+      setNotice("température entre -100 et 100");
+      return;
+    }
+    setNotice(null);
     setManualWord("");
     setManualScore("");
     setManualOpen(false);
