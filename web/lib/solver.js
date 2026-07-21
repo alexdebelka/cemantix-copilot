@@ -14,7 +14,6 @@ export const SEEDS = [
 
 const SUGGEST_CAP = 20000; // vocab is frequency-sorted; only suggest common words
 const POOL = 2000; // candidates must be magnitude-plausible (top by covariance)
-const WARM = 15; // keep seeding diverse regions until something scores this hot
 
 export function createSolver(words, vecs, d) {
   const n = words.length;
@@ -60,9 +59,8 @@ export function createSolver(words, vecs, d) {
 
     suggest() {
       const tried = (w) => scored.has(w) || dead.has(w);
-      const bestScore = Math.max(-Infinity, ...scored.values());
-      if (cols.length < 4 || bestScore < WARM) {
-        // cold: sample diverse regions instead of fitting noise
+      if (cols.length < 4) {
+        // correlation needs a few diverse points first
         for (const s of seeds) if (!tried(s) && index.has(s)) return s;
       }
       if (cols.length === 0) {

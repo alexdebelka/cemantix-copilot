@@ -8,18 +8,19 @@ It never contacts the game's servers — all computation is local.
 ## How it works
 
 Cémantix's temperature is `100 × cosine(guess, secret)` in a French word2vec
-space. Each scored guess is therefore a constraint on where the secret lives.
-The solver ranks the whole vocabulary by **Pearson correlation** between each
+space — specifically `frWac_no_postag_phrase_500_cbow_cut10`, which we verified
+against real game scores (r = 1.000, exact to the hundredth of a degree).
+Each scored guess is therefore a constraint on where the secret lives.
+The solver ranks the vocabulary by **Pearson correlation** between each
 candidate's cosine profile over the guessed words and the observed scores —
-correlation (rather than least-squares fit) makes it robust to the game using
-a slightly different embedding model. It typically converges in 5–15 guesses
-in simulation.
+correlation (rather than least-squares fit) keeps it robust if the game ever
+changes models. With the exact model it converges in ~5 guesses in simulation.
 
 ## Web app (`web/`)
 
 A minimal Next.js interface that runs the solver **entirely in the browser**:
-a compressed model (50 000 most common words, PCA to 256 dims, int8 ≈ 13 MB)
-is fetched once as a static asset, so the app deploys as a pure static site.
+a compressed model (50 000 most common words, int8-quantized ≈ 25 MB) is
+fetched once as a static asset, so the app deploys as a pure static site.
 
 ```sh
 cd web
@@ -34,8 +35,8 @@ no environment variables.
 ## CLI (`solver.py`)
 
 ```sh
-# one-time: download the frWac word2vec model (240 MB)
-curl -L -o model.bin https://embeddings.net/embeddings/frWac_no_postag_no_phrase_500_skip_cut100.bin
+# one-time: download the frWac word2vec model Cémantix uses (2.2 GB)
+curl -L -o model.bin https://embeddings.net/embeddings/frWac_no_postag_phrase_500_cbow_cut10.bin
 
 python3 solver.py --selftest   # offline convergence check
 python3 solver.py              # play

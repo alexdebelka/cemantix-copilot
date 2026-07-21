@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Export a compressed model for the web UI: top-N words, PCA to D dims, int8.
+"""Export a compressed model for the web UI: top-N words, int8-quantized.
 
 Writes web/public/model/{words.txt,vecs.i8,meta.json} and validates that the
-compressed model still converges when scores come from the full 500-dim model.
+compressed model still converges when scores come from the full-precision model.
 """
 import json
 from pathlib import Path
@@ -11,17 +11,14 @@ import numpy as np
 
 from solver import Solver, load_model
 
-N, D = 50_000, 256
+N, D = 50_000, 500
 OUT = Path(__file__).parent / "web" / "public" / "model"
 
 
 def compress(vecs):
-    X = vecs[:N].astype(np.float64)
-    _, _, Vt = np.linalg.svd(X - X.mean(0), full_matrices=False)
-    Y = (X @ Vt[:D].T).astype(np.float32)
-    Y /= np.linalg.norm(Y, axis=1, keepdims=True)
-    scale = np.abs(Y).max(axis=1, keepdims=True) / 127
-    q = np.clip(np.round(Y / scale), -127, 127).astype(np.int8)
+    X = vecs[:N]
+    scale = np.abs(X).max(axis=1, keepdims=True) / 127
+    q = np.clip(np.round(X / scale), -127, 127).astype(np.int8)
     return q, scale.astype(np.float32)
 
 

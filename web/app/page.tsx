@@ -171,7 +171,7 @@ export default function Home() {
 
       {phase === "loading" && (
         <div className="loading">
-          <span className="mono">chargement du modèle · 13 Mo</span>
+          <span className="mono">chargement du modèle · 25 Mo</span>
           <div className="progressTrack">
             <div className="progressFill" style={{ width: `${progress * 100}%` }} />
           </div>

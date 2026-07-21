@@ -27,8 +27,7 @@ SEEDS = ["vie", "temps", "monde", "eau", "maison", "animal", "musique",
 # Vocab is frequency-sorted; only suggest common words (rare ones are junk
 # the game rejects anyway). Manual `w` guesses may use the full vocab.
 SUGGEST_CAP = 20_000
-POOL = 2_000     # candidates must be magnitude-plausible (top by covariance)
-WARM = 15        # keep seeding diverse regions until something scores this hot
+POOL = 2_000  # candidates must be magnitude-plausible (top by covariance)
 
 
 def load_word2vec_bin(path):
@@ -58,10 +57,10 @@ def load_model():
         return list(data["words"]), data["vecs"]
     if not MODEL_BIN.exists():
         sys.exit("model.bin missing — run:\n  curl -L -o model.bin "
-                 "https://embeddings.net/embeddings/frWac_no_postag_no_phrase_500_skip_cut100.bin")
-    print("First run: parsing model.bin (takes ~20s, cached afterwards)...")
+                 "https://embeddings.net/embeddings/frWac_no_postag_phrase_500_cbow_cut10.bin")
+    print("First run: parsing model.bin (takes a few minutes, cached afterwards)...")
     words, vecs = load_word2vec_bin(MODEL_BIN)
-    keep = [i for i, w in enumerate(words) if game_word(w)]
+    keep = [i for i, w in enumerate(words) if game_word(w)][:100_000]
     words = [words[i] for i in keep]
     vecs = vecs[keep]
     vecs /= np.linalg.norm(vecs, axis=1, keepdims=True)  # unit vectors: dot = cosine
@@ -84,8 +83,7 @@ class Solver:
     def suggest(self):
         tried = set(self.scores) | self.dead
         known = [(w, s) for w, s in self.scores.items() if w in self.index]
-        best = max(self.scores.values(), default=-1e9)
-        if len(known) < 4 or best < WARM:  # cold: sample diverse regions
+        if len(known) < 4:  # correlation needs a few diverse points first
             for seed in self.seeds:
                 if seed not in tried and seed in self.index:
                     return seed
